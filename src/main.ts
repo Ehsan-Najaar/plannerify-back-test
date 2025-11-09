@@ -15,10 +15,13 @@ async function bootstrap() {
 
   // 🔹 فعال کردن CORS با credentials
   app.enableCors({
-    origin: 'http://localhost:3000',
+    origin: [
+      'http://localhost:3000',
+      'https://plannerify-next-test.liara.run/',
+    ],
     credentials: true,
   });
 
-  await app.listen(8000);
+  await app.listen(process.env.PORT || 8000);
 }
 bootstrap();
