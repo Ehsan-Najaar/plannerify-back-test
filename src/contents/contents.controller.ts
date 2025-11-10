@@ -1,19 +1,16 @@
 import {
+  Body,
   Controller,
   Get,
   Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { ContentsService } from './contents.service';
 import { CreateContentDto } from './dto/create-content.dto';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { extname } from 'path';
-import { diskStorage } from 'multer';
 
 @Controller('contents')
 export class ContentsController {

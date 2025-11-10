@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// src/auth/auth.controller.ts
 import {
   Body,
   Controller,
@@ -7,9 +9,10 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 
@@ -33,18 +36,71 @@ export class AuthController {
       signInDto.password,
     );
 
-    // ذخیره JWT در HttpOnly Cookie
-    res.cookie('jwt', r.access_token, {
+    // refresh_token
+    res.cookie('refresh_token', r.refresh_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 روز
+      secure: true,
+      sameSite: 'none',
+      partitioned: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-    // console.log('JWT Cookie set:', res.getHeader('Set-Cookie'));
-    // فرانت فقط اطلاعات کاربر بدون توکن دریافت کند
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { access_token, ...user } = r;
-    return user;
+
+    // jwt هم ست کن (برای میدلور)
+    res.cookie('jwt', r.access_token, {
+      httpOnly: false, // میدلور باید بتونه بخونه
+      secure: true,
+      sameSite: 'none',
+      partitioned: true,
+      maxAge: 15 * 60 * 1000, // 15 دقیقه
+    });
+
+    const { refresh_token, ...response } = r;
+    return response;
+  }
+
+  @Post('refresh')
+  async refreshToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies?.refresh_token;
+    if (!refreshToken) throw new UnauthorizedException();
+
+    try {
+      const payload = await this.authService.verifyRefreshToken(refreshToken);
+      const newAccessToken = await this.authService.generateAccessToken({
+        sub: payload.sub,
+        email: payload.email,
+        role: payload.role,
+      });
+
+      // آپدیت کوکی jwt
+      res.cookie('jwt', newAccessToken, {
+        httpOnly: false,
+        secure: true,
+        sameSite: 'none',
+        partitioned: true,
+        maxAge: 15 * 60 * 1000, // 15 دقیقه
+      });
+
+      return { access_token: newAccessToken };
+    } catch (error) {
+      // پاک کردن هر دو کوکی با تنظیمات کامل
+      res.clearCookie('refresh_token', {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        partitioned: true,
+      });
+      res.clearCookie('jwt', {
+        httpOnly: false,
+        secure: true,
+        sameSite: 'none',
+        partitioned: true,
+      });
+
+      throw new UnauthorizedException();
+    }
   }
 
   @Post('password-recovery')
@@ -63,17 +119,23 @@ export class AuthController {
   @Get('me')
   @UseGuards(AuthGuard)
   async getMe(@Req() req: AuthenticatedRequest) {
-    // console.log('Cookies received:', req.cookies);
-    return { user: req.user };
+    return this.authService.getMe(req.user);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('jwt', {
+    res.clearCookie('refresh_token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: true,
+      sameSite: 'none',
+      partitioned: true,
+    });
+    res.clearCookie('jwt', {
+      httpOnly: false,
+      secure: true,
+      sameSite: 'none',
+      partitioned: true,
     });
     return { message: 'Logged out successfully' };
   }

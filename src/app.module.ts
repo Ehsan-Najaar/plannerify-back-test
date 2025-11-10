@@ -98,7 +98,6 @@ import { SettingsModule } from 'src/setting/settings.module';
         Schedule,
         Settings,
       ],
-      synchronize: true,
     }),
     NestScheduleModule.forRoot(), // ماژول scheduling اصلی
     UsersModule,
